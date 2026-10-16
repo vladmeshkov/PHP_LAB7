@@ -96,6 +96,12 @@ check('сайт в подпапке: basePath отсекается от пути
 check('Windows: путь скрипта со слэшем «\\» не ломает basePath', $req('\\index.php', '/rooms')->basePath() === '');
 check('Windows: подпапка с обратными слэшами', $req('\\lab7\\public\\index.php', '/lab7/public/rooms')->path() === '/rooms');
 
+$origin = fn (array $headers): \Hotel\Core\Request => new \Hotel\Core\Request([], [], $headers + ['SCRIPT_NAME' => '/index.php', 'REQUEST_URI' => '/']);
+check('CSRF: запрос с того же сайта (Origin) допускается', $origin(['HTTP_ORIGIN' => 'http://localhost:8000', 'HTTP_HOST' => 'localhost:8000'])->sameOrigin());
+check('CSRF: запрос с чужого сайта отклоняется', !$origin(['HTTP_ORIGIN' => 'http://evil.example', 'HTTP_HOST' => 'localhost:8000'])->sameOrigin());
+check('CSRF: чужой Referer без Origin отклоняется', !$origin(['HTTP_REFERER' => 'http://evil.example/page', 'HTTP_HOST' => 'localhost:8000'])->sameOrigin());
+check('CSRF: без заголовков решает токен', $origin(['HTTP_HOST' => 'localhost:8000'])->sameOrigin());
+
 $p = new Paginator(25, 10, 99);
 check('Paginator: страница ограничивается последней', $p->page === 3 && $p->pages === 3 && $p->offset() === 20);
 check('Paginator: пустой список', (new Paginator(0, 10, 1))->pages === 1);

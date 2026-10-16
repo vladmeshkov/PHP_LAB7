@@ -155,8 +155,9 @@ final class Application
 
         $route = $router->match($this->request->method(), $this->request->path());
 
-        // Любой POST-запрос должен нести верный CSRF-токен.
-        if ($this->request->isPost() && !$this->csrf()->valid($this->request)) {
+        // Любой POST-запрос должен прийти с нашего сайта и нести верный CSRF-токен.
+        if ($this->request->isPost() && (!$this->request->sameOrigin() || !$this->csrf()->valid($this->request))) {
+            $this->securityLog('csrf_rejected');
             throw new HttpException(419);
         }
 
@@ -218,6 +219,13 @@ final class Application
         }
 
         return new Response($html, $status);
+    }
+
+    /** Подозрительные события (неверный токен, неудачный вход) пишутся в отдельный журнал. */
+    public function securityLog(string $event, string $details = ''): void
+    {
+        $line = sprintf("[%s] %s ip=%s %s %s %s\n", date('Y-m-d H:i:s'), $event, $this->request->ip(), $this->request->method(), $this->request->path(), $details);
+        @file_put_contents($this->root . '/storage/logs/security.log', $line, FILE_APPEND | LOCK_EX);
     }
 
     /** Подробности ошибки сохраняются в журнал, а пользователю показывается только общее сообщение. */

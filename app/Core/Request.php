@@ -106,6 +106,24 @@ final class Request
         return (string) ($this->server[$key] ?? '');
     }
 
+    /**
+     * Запрос пришёл с нашего же сайта? Сравниваются Origin (или Referer) и Host.
+     * Если браузер заголовок не прислал, запрос пропускается: решает CSRF-токен.
+     */
+    public function sameOrigin(): bool
+    {
+        $source = $this->header('Origin') ?: $this->header('Referer');
+        if ($source === '') {
+            return true;
+        }
+
+        $host = (string) parse_url($source, PHP_URL_HOST);
+        $port = parse_url($source, PHP_URL_PORT);
+        $from = $port ? $host . ':' . $port : $host;
+
+        return strcasecmp($from, $this->header('Host')) === 0;
+    }
+
     public function ip(): string
     {
         return (string) ($this->server['REMOTE_ADDR'] ?? '');

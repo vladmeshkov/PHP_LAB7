@@ -51,6 +51,7 @@ final class AuthController extends Controller
         $auth = $this->app->auth();
 
         if (($wait = $auth->lockedFor()) > 0) {
+            $this->app->securityLog('login_locked');
             return $this->backWithErrors('login', $request, ['form' => 'Слишком много неудачных попыток. Повторите через ' . ceil($wait / 60) . ' мин.']);
         }
 
@@ -62,6 +63,7 @@ final class AuthController extends Controller
         }
 
         $auth->registerFailure();
+        $this->app->securityLog('login_failed', 'email=' . $request->input('email'));
 
         return $this->backWithErrors('login', $request, ['form' => 'Неверный email или пароль']);
     }
