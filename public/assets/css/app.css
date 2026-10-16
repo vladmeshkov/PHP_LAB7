@@ -1,0 +1,87 @@
+/* Оформление поверх Bootstrap 5: спокойная палитра (тёмно-бирюзовый и золотистый), заголовки с засечками */
+:root {
+    --ink: #232a33;
+    --muted: #6b7280;
+    --paper: #f6f4ef;
+    --line: #e3ded3;
+    --brand: #1f4d5a;
+    --brand-dark: #173b45;
+    --gold: #b48a3c;
+
+    --bs-body-bg: var(--paper);
+    --bs-body-color: var(--ink);
+    --bs-body-font-size: .95rem;
+    --bs-link-color: var(--brand);
+    --bs-link-hover-color: var(--brand-dark);
+    --bs-border-color: var(--line);
+}
+
+body { -webkit-font-smoothing: antialiased; }
+a { color: var(--brand); }
+a:hover { color: var(--brand-dark); }
+.btn { text-decoration: none; }
+h1, h2, h3, h4, h5, .page-title, .navbar-brand { font-family: Georgia, "Times New Roman", serif; font-weight: 600; letter-spacing: .005em; }
+.page-title { font-size: 1.85rem; margin-bottom: .25rem; }
+.page-lead { color: var(--muted); margin-bottom: 1.5rem; }
+
+/* Шапка */
+.site-nav { background: #fff; border-bottom: 1px solid var(--line); padding-block: .6rem; }
+.site-nav .navbar-brand { display: flex; align-items: center; gap: .6rem; color: var(--ink); font-size: 1.2rem; }
+.brand-mark { display: inline-grid; place-items: center; width: 1.9rem; height: 1.9rem; border-radius: 50%; background: var(--brand); color: #fff; font-size: .95rem; }
+.site-nav .nav-link { color: #3b434e; padding-inline: .9rem; border-bottom: 2px solid transparent; }
+.site-nav .nav-link:hover { color: var(--brand); }
+.site-nav .nav-link.active { color: var(--brand); border-bottom-color: var(--gold); }
+.site-footer { border-top: 1px solid var(--line); color: var(--muted); background: #fff; }
+
+/* Кнопки */
+.btn { border-radius: .5rem; }
+.btn-primary { --bs-btn-bg: var(--brand); --bs-btn-border-color: var(--brand); --bs-btn-hover-bg: var(--brand-dark); --bs-btn-hover-border-color: var(--brand-dark);
+    --bs-btn-active-bg: var(--brand-dark); --bs-btn-active-border-color: var(--brand-dark); --bs-btn-disabled-bg: var(--brand); --bs-btn-disabled-border-color: var(--brand); }
+.btn-outline-primary { --bs-btn-color: var(--brand); --bs-btn-border-color: var(--brand); --bs-btn-hover-bg: var(--brand); --bs-btn-hover-border-color: var(--brand);
+    --bs-btn-active-bg: var(--brand-dark); --bs-btn-active-border-color: var(--brand-dark); }
+
+/* Поля */
+.form-control, .form-select { border-color: #d6d0c3; border-radius: .5rem; }
+.form-control:focus, .form-select:focus, .btn:focus-visible { border-color: var(--brand); box-shadow: 0 0 0 .2rem rgba(31, 77, 90, .15); }
+.form-label { font-size: .85rem; color: var(--muted); margin-bottom: .25rem; }
+
+/* Карточки и таблицы */
+.card { border: 1px solid var(--line); border-radius: .75rem; box-shadow: none; background: #fff; }
+.shadow-sm { box-shadow: none !important; }
+.table { --bs-table-bg: transparent; }
+.table > :not(caption) > * > * { padding: .7rem .85rem; }
+.table thead th, .table-light { --bs-table-bg: #faf8f4; font-weight: 600; font-size: .8rem; color: var(--muted); border-bottom-color: var(--line); }
+
+/* Карточка номера */
+.room-card { overflow: hidden; transition: border-color .15s; }
+.room-card:hover { border-color: var(--brand); }
+.room-band { display: flex; justify-content: space-between; align-items: center; padding: .9rem 1.1rem; }
+.room-band__number { font: 600 1.9rem/1 Georgia, "Times New Roman", serif; letter-spacing: .02em; }
+.room-band--economy  { background: #e9eef0; color: #31464e; }
+.room-band--standard { background: #e4ede6; color: #2f4a38; }
+.room-band--comfort  { background: #f0e8d6; color: #5c4719; }
+.room-band--suite    { background: #26323b; color: #f1e4c3; }
+.room-price { font-weight: 600; font-size: 1.05rem; }
+.room-price span { color: var(--muted); font-weight: 400; font-size: .85rem; }
+
+/* Метки класса и статуса */
+.tag { display: inline-block; padding: .15rem .6rem; border-radius: 999px; font-size: .75rem; font-weight: 600; background: rgba(255, 255, 255, .65); color: inherit; border: 1px solid rgba(0, 0, 0, .12); }
+.tag--economy { color: #31464e; background: #e9eef0; }
+.tag--standard { color: #2f4a38; background: #e4ede6; }
+.tag--comfort { color: #5c4719; background: #f0e8d6; }
+.tag--suite { color: #f1e4c3; background: #26323b; border-color: #26323b; }
+.room-band--suite .tag { background: rgba(255, 255, 255, .12); color: #f1e4c3; border-color: rgba(241, 228, 195, .4); }
+
+.pill { display: inline-block; padding: .15rem .6rem; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+.pill--ok { background: #dff1e6; color: #1d6b3c; }
+.pill--now { background: #dcecf4; color: #1a5878; }
+.pill--done { background: #ebe8e1; color: #4d5058; }
+.pill--muted { background: #f1efea; color: #8a8d93; text-decoration: line-through; }
+
+/* Пагинация и вкладки */
+.pagination { --bs-pagination-color: var(--brand); --bs-pagination-active-bg: var(--brand); --bs-pagination-active-border-color: var(--brand);
+    --bs-pagination-hover-color: var(--brand-dark); --bs-pagination-border-color: var(--line); }
+.nav-tabs { --bs-nav-tabs-border-color: var(--line); --bs-nav-tabs-link-active-border-color: var(--line) var(--line) var(--paper); --bs-nav-tabs-link-active-bg: var(--paper); }
+.nav-tabs .nav-link { color: var(--muted); }
+.nav-tabs .nav-link.active { color: var(--brand); font-weight: 600; }
+.breadcrumb { --bs-breadcrumb-divider-color: #9ca3af; font-size: .85rem; }
