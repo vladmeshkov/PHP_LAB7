@@ -51,6 +51,14 @@ if (!function_exists('class_badge')) {
             : '';
     }
 
+    /** Две первые буквы имени для аватара. */
+    function initials(string $name): string
+    {
+        $parts = preg_split('/\s+/u', trim($name)) ?: [];
+
+        return mb_strtoupper(mb_substr($parts[0] ?? '', 0, 1) . mb_substr($parts[1] ?? '', 0, 1));
+    }
+
     /** Что входит в номер: каждый следующий класс включает удобства предыдущего. */
     function room_amenities(string $class): array
     {

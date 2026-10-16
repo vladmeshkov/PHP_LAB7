@@ -50,7 +50,7 @@
         <div class="card booking-panel">
             <div class="card-body p-4">
                 <div class="d-flex justify-content-between align-items-baseline mb-3">
-                    <div class="h4 mb-0"><?= e(money($room['price'])) ?></div>
+                    <div class="price-big"><?= e(money($room['price'])) ?></div>
                     <span class="text-muted">за сутки</span>
                 </div>
 
@@ -101,7 +101,7 @@
                             <span class="text-muted">Итого за <span id="nights">–</span> сут.</span>
                             <strong id="total" class="fs-5">–</strong>
                         </div>
-                        <button class="btn btn-primary w-100">Забронировать и оплатить</button>
+                        <button class="btn btn-gold w-100 py-2">Забронировать</button>
                         <div class="form-text mt-2">После бронирования бронь нужно оплатить в течение <?= (int) config('payment_hold_hours') ?> ч., иначе она будет отменена. При оплате «при заселении» срок не ограничен. Платёж условный: данные карты не запрашиваются.</div>
                     </form>
                 <?php endif; ?>

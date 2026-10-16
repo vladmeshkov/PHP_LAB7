@@ -11,7 +11,7 @@ $fields = [
     <div class="col-md-7 col-lg-5">
         <div class="card">
             <div class="card-body p-4">
-                <h1 class="mb-4">Регистрация</h1>
+                <h1 class="h2 mb-4">Регистрация</h1>
                 <form method="post" action="<?= e(url('register')) ?>" novalidate>
                     <?= csrf_field() ?>
                     <?php foreach ($fields as [$name, $label, $type, $auto]): ?>

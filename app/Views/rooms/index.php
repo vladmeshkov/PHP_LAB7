@@ -15,7 +15,7 @@ $query = static fn (array $extra = []): string => http_build_query(array_filter(
     <p>Укажите даты проживания, и мы покажем только свободные номера.</p>
 </div>
 
-<form method="get" action="<?= e(url('rooms')) ?>" class="card card-body mb-3">
+<form method="get" action="<?= e(url('rooms')) ?>" class="card filter-bar">
     <div class="row g-3 align-items-end">
         <div class="col-6 col-lg-2">
             <label class="form-label" for="from">Заезд</label>
@@ -77,23 +77,26 @@ $query = static fn (array $extra = []): string => http_build_query(array_filter(
     </div>
 <?php endif; ?>
 
-<div class="row g-3 mb-4">
+<div class="row g-4 mb-4">
     <?php foreach ($rooms as $room): ?>
         <div class="col-md-6 col-lg-4">
-            <article class="card room-card">
+            <article class="card room-card room-card--<?= e($room['class']) ?>">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h2 class="room-title">Номер <?= e($room['number']) ?></h2>
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <div class="room-meta">Номер</div>
+                            <div class="room-number"><?= e($room['number']) ?></div>
+                        </div>
                         <?= class_badge($room['class']) ?>
                     </div>
                     <p class="text-muted small flex-grow-1 mb-3"><?= e(mb_strimwidth((string) $room['description'], 0, 100, '…')) ?></p>
+                    <div class="room-meta mb-3">до <?= (int) $room['capacity'] ?> гост.</div>
                     <div class="d-flex justify-content-between align-items-end">
                         <div>
                             <div class="room-price"><?= e(money($room['price'])) ?> <span>/ сутки</span></div>
                             <?php if ($dated): ?>
                                 <div class="small text-success">за <?= (int) $nights ?> сут.: <?= e(money($room['price'] * $nights)) ?></div>
                             <?php endif; ?>
-                            <div class="small text-muted">до <?= (int) $room['capacity'] ?> гост.</div>
                         </div>
                         <a class="btn btn-outline-primary btn-sm" href="<?= e(url('rooms/' . $room['id'])) ?><?= $dated || $filters['guests'] ? '?' . e($query()) : '' ?>">Выбрать</a>
                     </div>

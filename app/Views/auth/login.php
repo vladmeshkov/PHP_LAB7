@@ -3,7 +3,7 @@
     <div class="col-md-6 col-lg-4">
         <div class="card">
             <div class="card-body p-4">
-                <h1 class="mb-4">Вход</h1>
+                <h1 class="h2 mb-4">Вход</h1>
 
                 <?php if (isset($errors['form'])): ?>
                     <div class="alert alert-danger"><?= e($errors['form']) ?></div>
