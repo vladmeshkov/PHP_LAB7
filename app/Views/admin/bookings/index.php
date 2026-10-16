@@ -23,7 +23,7 @@ require_once __DIR__ . '/../../partials/badges.php';
     </form>
 </div>
 
-<div class="table-responsive card shadow-sm">
+<div class="table-responsive card table-card">
     <table class="table align-middle mb-0">
         <thead class="table-light"><tr><th>№</th><th>Гость</th><th>Номер</th><th>Даты</th><th class="text-end">Сумма</th><th>Статус</th><th></th></tr></thead>
         <tbody>

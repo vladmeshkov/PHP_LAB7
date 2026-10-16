@@ -10,7 +10,6 @@
  * @var ?array $user
  * @var array $errors
  */
-require_once __DIR__ . '/../partials/badges.php';
 ?>
 <nav aria-label="breadcrumb"><ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="<?= e(url('rooms')) ?>">Номера</a></li>
@@ -19,38 +18,45 @@ require_once __DIR__ . '/../partials/badges.php';
 
 <div class="row g-4">
     <div class="col-lg-7">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start mb-3">
-                    <h1 class="page-title mb-0">Номер <?= e($room['number']) ?></h1>
-                    <?= class_badge($room['class']) ?>
-                </div>
-                <p><?= nl2br(e((string) $room['description'])) ?></p>
-                <ul class="list-unstyled text-muted mb-0">
-                    <li>Вместимость: до <?= (int) $room['capacity'] ?> гост.</li>
-                    <li>Стоимость: <strong class="text-dark"><?= e(money($room['price'])) ?></strong> за сутки</li>
-                </ul>
-            </div>
+        <div class="room-hero mb-4">
+            <img src="<?= e(room_image($room['class'])) ?>" alt="Номер <?= e($room['number']) ?>">
+        </div>
+
+        <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
+            <h1 class="mb-0">Номер <?= e($room['number']) ?></h1>
+            <?= class_badge($room['class']) ?>
+        </div>
+        <p class="text-muted"><?= icon('users') ?> до <?= (int) $room['capacity'] ?> гост. · <?= e(money($room['price'])) ?> за сутки</p>
+        <p class="mb-4"><?= nl2br(e((string) $room['description'])) ?></p>
+
+        <div class="card card-body mb-3">
+            <h3 class="mb-3">В номере</h3>
+            <ul class="amenities">
+                <?php foreach (room_amenities($room['class']) as $item): ?>
+                    <li><?= icon('check') ?><?= e($item) ?></li>
+                <?php endforeach; ?>
+            </ul>
         </div>
 
         <?php if ($busy): ?>
-            <div class="card shadow-sm mt-3">
-                <div class="card-body">
-                    <h2 class="h6">Ближайшие занятые даты</h2>
-                    <ul class="mb-0">
-                        <?php foreach ($busy as $period): ?>
-                            <li><?= e(date_ru($period['date_from'])) ?> – <?= e(date_ru($period['date_to'])) ?></li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
+            <div class="card card-body">
+                <h3 class="mb-3">Ближайшие занятые даты</h3>
+                <ul class="mb-0 ps-3">
+                    <?php foreach ($busy as $period): ?>
+                        <li><?= e(date_ru($period['date_from'])) ?> – <?= e(date_ru($period['date_to'])) ?></li>
+                    <?php endforeach; ?>
+                </ul>
             </div>
         <?php endif; ?>
     </div>
 
     <div class="col-lg-5">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h2 class="h5 mb-3">Бронирование</h2>
+        <div class="card booking-panel">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-baseline mb-3">
+                    <div class="price-big"><?= e(money($room['price'])) ?></div>
+                    <span class="text-muted">за сутки</span>
+                </div>
 
                 <?php if (isset($errors['form'])): ?>
                     <div class="alert alert-danger"><?= e($errors['form']) ?></div>
@@ -59,7 +65,11 @@ require_once __DIR__ . '/../partials/badges.php';
                 <?php if ($user && $user['role'] === 'admin'): ?>
                     <p class="text-muted mb-0">Администратор бронирует номера не от своего имени. Бронирования клиентов – в разделе «Админ-панель».</p>
                 <?php elseif (!$user): ?>
-                    <p class="text-muted">Чтобы забронировать номер, <a href="<?= e(url('login')) ?>">войдите</a> или <a href="<?= e(url('register')) ?>">зарегистрируйтесь</a>.</p>
+                    <p class="text-muted">Чтобы забронировать номер, войдите или создайте аккаунт.</p>
+                    <div class="d-flex gap-2">
+                        <a class="btn btn-primary flex-grow-1" href="<?= e(url('login')) ?>">Войти</a>
+                        <a class="btn btn-outline-primary flex-grow-1" href="<?= e(url('register')) ?>">Регистрация</a>
+                    </div>
                 <?php else: ?>
                     <form method="post" action="<?= e(url('bookings')) ?>" id="booking-form" data-price="<?= e($room['price']) ?>" novalidate>
                         <?= csrf_field() ?>
@@ -91,12 +101,12 @@ require_once __DIR__ . '/../partials/badges.php';
                             </div>
                         </div>
 
-                        <div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+                        <div class="summary-row mt-3">
                             <span class="text-muted">Итого за <span id="nights">–</span> сут.</span>
-                            <strong id="total" class="fs-5">–</strong>
+                            <strong id="total">–</strong>
                         </div>
-                        <button class="btn btn-primary w-100">Забронировать и оплатить</button>
-                        <div class="form-text">Оплата условная: данные карты не запрашиваются.</div>
+                        <button class="btn btn-gold w-100 py-2">Забронировать и оплатить</button>
+                        <div class="form-text text-center mt-2">Оплата условная: данные карты не запрашиваются.</div>
                     </form>
                 <?php endif; ?>
             </div>

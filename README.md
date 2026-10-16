@@ -55,7 +55,7 @@ payments(id, booking_id*→bookings, amount, paid_at, method, status)
 ## Архитектура
 
 ```
-public/index.php          единственная точка входа, assets/ (Bootstrap, css, js)
+public/index.php          единственная точка входа, assets/ (Bootstrap, свои css и js, шрифты Inter и Playfair Display, иллюстрации номеров в img/)
 config/                   app.php, database.php, routes.php (таблица маршрутов)
 app/Core/                 Application, Router, Request, Response, View, Session, Csrf, Auth, Validator, Paginator, Database
 app/Controllers/          клиентская часть и Admin/ (только тонкие контроллеры)

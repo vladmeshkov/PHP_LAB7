@@ -16,7 +16,7 @@
     </form>
 </div>
 
-<div class="table-responsive card shadow-sm">
+<div class="table-responsive card table-card">
     <table class="table align-middle mb-0">
         <thead class="table-light"><tr><th>ID</th><th>Имя</th><th>Email</th><th>Регистрация</th><th class="text-center">Броней</th><th>Роль</th><th></th></tr></thead>
         <tbody>

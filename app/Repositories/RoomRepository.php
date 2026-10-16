@@ -106,6 +106,15 @@ final class RoomRepository
         return $stmt->fetchAll();
     }
 
+    /** Для главной страницы: по каждому классу – сколько номеров и самая низкая цена. */
+    public function summaryByClass(): array
+    {
+        $rows = $this->pdo->query('SELECT class, COUNT(*) AS total, MIN(price) AS min_price, MAX(capacity) AS max_capacity
+                                   FROM rooms WHERE is_active = 1 GROUP BY class')->fetchAll();
+
+        return array_column($rows, null, 'class');
+    }
+
     public function create(array $d): int
     {
         $stmt = $this->pdo->prepare('INSERT INTO rooms (number, class, price, capacity, description, is_active)

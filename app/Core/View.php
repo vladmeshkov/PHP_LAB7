@@ -14,6 +14,9 @@ final class View
 
     public function render(string $template, array $data = [], ?string $layout = 'layouts/main'): string
     {
+        // Помощники для шаблонов (метки, иконки, картинки) доступны на всех страницах
+        require_once $this->path . '/partials/badges.php';
+
         $content = $this->include($template, $data);
 
         return $layout === null ? $content : $this->include($layout, $data + ['content' => $content]);

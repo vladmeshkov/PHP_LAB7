@@ -7,12 +7,12 @@
 require_once __DIR__ . '/../partials/badges.php';
 $methods = \Hotel\Repositories\PaymentRepository::METHODS;
 ?>
-<h1 class="h3 mb-3">Мои бронирования</h1>
+<div class="page-head"><h1>Мои бронирования</h1><p>История проживаний и предстоящие заезды.</p></div>
 
 <?php if ($bookings === []): ?>
-    <div class="alert alert-secondary">У вас пока нет бронирований. <a href="<?= e(url('rooms')) ?>">Выберите номер</a>.</div>
+    <div class="card card-body text-center py-5"><h3>Бронирований пока нет</h3><p class="text-muted mb-3">Выберите номер и даты, и бронь появится здесь.</p><div><a class="btn btn-primary" href="<?= e(url('rooms')) ?>">Подобрать номер</a></div></div>
 <?php else: ?>
-    <div class="table-responsive card shadow-sm">
+    <div class="table-responsive card table-card">
         <table class="table align-middle mb-0">
             <thead class="table-light">
                 <tr>
