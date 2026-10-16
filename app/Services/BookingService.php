@@ -57,8 +57,17 @@ final class BookingService
         return null;
     }
 
+    /** Обновляет статусы, зависящие от времени. Вызывается перед показом списков и перед бронированием. */
+    public function refresh(): void
+    {
+        $this->bookings->expireUnpaid();
+        $this->bookings->markNoShows();
+        $this->bookings->completeFinished();
+    }
+
     /**
-     * Создаёт бронь и оплату в одной транзакции.
+     * Создаёт бронь (статус «забронировано») и оплату (статус «ожидает оплаты») в одной транзакции.
+     * Для карты и онлайн-оплаты задаётся срок: не оплатили вовремя – бронь отменяется.
      * Строка номера блокируется (FOR UPDATE), поэтому два клиента не смогут одновременно занять одни и те же даты.
      *
      * @throws BookingException если бронирование невозможно
@@ -71,6 +80,8 @@ final class BookingService
         if (!isset(PaymentRepository::METHODS[$method])) {
             throw new BookingException('Выберите способ оплаты');
         }
+
+        $this->refresh();   // просроченные брони освобождают номер до проверки занятости
 
         $this->pdo->beginTransaction();
         try {
@@ -88,8 +99,9 @@ final class BookingService
                 throw new BookingException('Номер уже занят на выбранные даты');
             }
 
+            $due = $method === 'cash' ? null : date('Y-m-d H:i:s', time() + (int) config('payment_hold_hours', 24) * 3600);
             $id = $this->bookings->create($userId, $roomId, $from, $to, $guests);
-            $this->payments->create($id, self::cost($room['price'], self::nights($from, $to)), $method);
+            $this->payments->create($id, self::cost($room['price'], self::nights($from, $to)), $method, $due);
             $this->pdo->commit();
 
             return $id;
@@ -100,32 +112,103 @@ final class BookingService
     }
 
     /**
-     * Отмена брони. Клиент может отменить только свою бронь до дня заезда, администратор – любую неоконченную.
+     * Оплата брони гостем (онлайн-платёж условный). Бронь переходит в «оплачено».
+     * Оплата «при заселении» принимается только администратором.
+     *
+     * @throws BookingException
+     */
+    public function pay(int $bookingId, int $actorId, bool $isAdmin): void
+    {
+        $booking = $this->owned($bookingId, $actorId, $isAdmin);
+
+        if ($booking['status'] !== BookingStatus::BOOKED || $booking['pay_status'] !== 'pending') {
+            throw new BookingException('Эта бронь не ожидает оплаты');
+        }
+        if (!$isAdmin && $booking['pay_method'] === 'cash') {
+            throw new BookingException('Эта бронь оплачивается при заселении');
+        }
+
+        $this->transition($bookingId, BookingStatus::PAID, null, fn () => $this->payments->markPaid($bookingId));
+    }
+
+    /**
+     * Отмена. Гость отменяет свою бронь до дня заезда, администратор – любую бронь до заселения.
+     * Оплаченное возвращается, неоплаченное закрывается.
      *
      * @throws BookingException
      */
     public function cancel(int $bookingId, int $actorId, bool $isAdmin, ?string $today = null): void
     {
         $today ??= date('Y-m-d');
-        $booking = $this->bookings->find($bookingId);
+        $booking = $this->owned($bookingId, $actorId, $isAdmin);
 
-        if ($booking === null || (!$isAdmin && (int) $booking['user_id'] !== $actorId)) {
-            throw new BookingException('Бронирование не найдено');
-        }
-        if ($booking['status'] !== 'confirmed') {
-            throw new BookingException('Бронирование уже отменено');
+        if (!in_array($booking['status'], BookingStatus::CANCELLABLE, true)) {
+            throw new BookingException($booking['status'] === BookingStatus::CANCELLED
+                ? 'Бронирование уже отменено'
+                : 'Бронирование в статусе «' . BookingStatus::LABELS[$booking['status']] . '» отменить нельзя');
         }
         if (!$isAdmin && $booking['date_from'] <= $today) {
             throw new BookingException('Отменить можно только бронь, заезд по которой ещё не начался');
         }
-        if ($isAdmin && $booking['date_to'] < $today) {
-            throw new BookingException('Проживание уже завершено');
+
+        $this->transition($bookingId, BookingStatus::CANCELLED, $isAdmin ? 'admin' : 'client', fn () => $this->payments->close($bookingId));
+    }
+
+    /**
+     * Заселение (администратор). Только оплаченная бронь и не раньше даты заезда.
+     * Если гость платит при заселении, сначала принимается оплата.
+     *
+     * @throws BookingException
+     */
+    public function checkIn(int $bookingId, ?string $today = null): void
+    {
+        $today ??= date('Y-m-d');
+        $booking = $this->bookings->find($bookingId) ?? throw new BookingException('Бронирование не найдено');
+
+        if ($booking['status'] === BookingStatus::BOOKED) {
+            throw new BookingException('Сначала нужно принять оплату: бронь ещё не оплачена');
+        }
+        if ($booking['status'] !== BookingStatus::PAID) {
+            throw new BookingException('Заселить можно только оплаченную бронь');
+        }
+        if ($booking['date_from'] > $today) {
+            throw new BookingException('Заезд по этой брони ещё не наступил (' . date_ru($booking['date_from']) . ')');
         }
 
+        $this->transition($bookingId, BookingStatus::CHECKED_IN);
+    }
+
+    /** Выселение (администратор): проживание завершено. */
+    public function checkOut(int $bookingId): void
+    {
+        $booking = $this->bookings->find($bookingId) ?? throw new BookingException('Бронирование не найдено');
+        if ($booking['status'] !== BookingStatus::CHECKED_IN) {
+            throw new BookingException('Выселить можно только проживающего гостя');
+        }
+
+        $this->transition($bookingId, BookingStatus::COMPLETED);
+    }
+
+    /** Бронь, к которой у пользователя есть доступ: своя, а для администратора любая. */
+    private function owned(int $bookingId, int $actorId, bool $isAdmin): array
+    {
+        $booking = $this->bookings->find($bookingId);
+        if ($booking === null || (!$isAdmin && (int) $booking['user_id'] !== $actorId)) {
+            throw new BookingException('Бронирование не найдено');
+        }
+
+        return $booking;
+    }
+
+    /** Смена статуса вместе с сопутствующим действием в одной транзакции. */
+    private function transition(int $bookingId, string $status, ?string $reason = null, ?callable $also = null): void
+    {
         $this->pdo->beginTransaction();
         try {
-            $this->bookings->cancel($bookingId);
-            $this->payments->refund($bookingId);
+            $this->bookings->setStatus($bookingId, $status, $reason);
+            if ($also !== null) {
+                $also();
+            }
             $this->pdo->commit();
         } catch (\Throwable $e) {
             $this->pdo->rollBack();

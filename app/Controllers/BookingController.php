@@ -21,6 +21,7 @@ final class BookingController extends Controller
             return $this->redirect('admin/bookings');
         }
 
+        $this->app->bookingService()->refresh();
         $userId = $this->app->auth()->id();
         $paginator = new Paginator($this->app->bookings()->countForUser($userId), (int) config('per_page.history'), (int) $request->query('page', '1'));
 
@@ -67,7 +68,22 @@ final class BookingController extends Controller
             return $this->backWithErrors($back, $request, ['form' => $e->getMessage()]);
         }
 
-        $this->flash('success', "Бронирование №{$id} подтверждено");
+        $this->flash('success', "Бронирование №{$id} создано. " . ($request->input('method') === 'cash'
+            ? 'Оплата при заселении.'
+            : 'Оплатите его в течение ' . config('payment_hold_hours') . ' ч., иначе бронь будет отменена.'));
+
+        return $this->redirect('bookings');
+    }
+
+    /** Оплата бронирования (условная: платёжной системы нет). */
+    public function pay(Request $request, int $id): Response
+    {
+        try {
+            $this->app->bookingService()->pay($id, $this->app->auth()->id(), false);
+            $this->flash('success', "Бронирование №{$id} оплачено");
+        } catch (BookingException $e) {
+            $this->flash('danger', $e->getMessage());
+        }
 
         return $this->redirect('bookings');
     }
@@ -76,7 +92,7 @@ final class BookingController extends Controller
     {
         try {
             $this->app->bookingService()->cancel($id, $this->app->auth()->id(), false);
-            $this->flash('success', "Бронирование №{$id} отменено, оплата возвращена");
+            $this->flash('success', "Бронирование №{$id} отменено");
         } catch (BookingException $e) {
             $this->flash('danger', $e->getMessage());
         }

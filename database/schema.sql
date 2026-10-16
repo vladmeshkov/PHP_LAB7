@@ -34,9 +34,13 @@ CREATE TABLE IF NOT EXISTS bookings (
     date_from  DATE NOT NULL,
     date_to    DATE NOT NULL,
     guests     TINYINT UNSIGNED NOT NULL DEFAULT 1,
-    status     ENUM('confirmed', 'cancelled') NOT NULL DEFAULT 'confirmed',
+    -- booked: забронировано (ждёт оплаты), paid: оплачено, checked_in: проживает,
+    -- completed: проживание завершено, no_show: не заехал, cancelled: отменено
+    status        ENUM('booked', 'paid', 'checked_in', 'completed', 'no_show', 'cancelled') NOT NULL DEFAULT 'booked',
+    cancel_reason ENUM('client', 'admin', 'expired') NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
+    KEY idx_bookings_status (status),
     KEY idx_bookings_user (user_id),
     KEY idx_bookings_room_dates (room_id, date_from, date_to),
     CONSTRAINT fk_bookings_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
@@ -48,9 +52,11 @@ CREATE TABLE IF NOT EXISTS payments (
     id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
     booking_id INT UNSIGNED NOT NULL,
     amount     DECIMAL(10, 2) NOT NULL,
-    paid_at    DATE NOT NULL,
     method     ENUM('card', 'cash', 'online') NOT NULL,
-    status     ENUM('paid', 'refunded') NOT NULL DEFAULT 'paid',
+    -- pending: ожидает оплаты, paid: оплачено, refunded: возвращено, cancelled: отменено без оплаты
+    status     ENUM('pending', 'paid', 'refunded', 'cancelled') NOT NULL DEFAULT 'pending',
+    due_at     DATETIME NULL,          -- оплатить до (для карты и онлайн-оплаты), иначе бронь отменяется
+    paid_at    DATETIME NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uq_payments_booking (booking_id),
     CONSTRAINT fk_payments_booking FOREIGN KEY (booking_id) REFERENCES bookings (id) ON DELETE CASCADE

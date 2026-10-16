@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Hotel\Repositories;
 
+use Hotel\Services\BookingStatus;
 use PDO;
 
 /** Доступ к таблице bookings и сводная статистика для админ-панели. */
@@ -10,7 +11,7 @@ final class BookingRepository
 {
     private const SELECT = "SELECT b.*, r.number AS room_number, r.class AS room_class, r.price AS room_price,
                                    u.name AS user_name, u.email AS user_email,
-                                   p.amount AS amount, p.method AS pay_method, p.status AS pay_status
+                                   p.amount AS amount, p.method AS pay_method, p.status AS pay_status, p.due_at AS pay_due, p.paid_at AS paid_at
                             FROM bookings b
                             JOIN rooms r ON r.id = b.room_id
                             JOIN users u ON u.id = b.user_id
@@ -31,21 +32,49 @@ final class BookingRepository
     public function create(int $userId, int $roomId, string $from, string $to, int $guests): int
     {
         $stmt = $this->pdo->prepare("INSERT INTO bookings (user_id, room_id, date_from, date_to, guests, status)
-                                     VALUES (:user, :room, :from, :to, :guests, 'confirmed')");
+                                     VALUES (:user, :room, :from, :to, :guests, 'booked')");
         $stmt->execute(['user' => $userId, 'room' => $roomId, 'from' => $from, 'to' => $to, 'guests' => $guests]);
 
         return (int) $this->pdo->lastInsertId();
     }
 
-    public function cancel(int $id): void
+    public function setStatus(int $id, string $status, ?string $reason = null): void
     {
-        $this->pdo->prepare("UPDATE bookings SET status = 'cancelled' WHERE id = :id")->execute(['id' => $id]);
+        $this->pdo->prepare('UPDATE bookings SET status = :status, cancel_reason = :reason WHERE id = :id')
+            ->execute(['status' => $status, 'reason' => $reason, 'id' => $id]);
+    }
+
+    // ---------- Автоматические переходы статусов ----------
+
+    /** Не оплатили вовремя (карта/онлайн): бронь отменяется, номер освобождается. Возвращает число отменённых. */
+    public function expireUnpaid(): int
+    {
+        $ids = $this->pdo->query("SELECT b.id FROM bookings b JOIN payments p ON p.booking_id = b.id
+                                  WHERE b.status = 'booked' AND p.status = 'pending' AND p.due_at IS NOT NULL AND p.due_at < NOW()")->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($ids as $id) {
+            $this->setStatus((int) $id, BookingStatus::CANCELLED, 'expired');
+            $this->pdo->prepare("UPDATE payments SET status = 'cancelled', due_at = NULL WHERE booking_id = :id")->execute(['id' => $id]);
+        }
+
+        return count($ids);
+    }
+
+    /** Гость не приехал в день заезда: «забронировано» и «оплачено» превращаются в «не заехал». */
+    public function markNoShows(): void
+    {
+        $this->pdo->exec("UPDATE bookings SET status = 'no_show' WHERE status IN ('booked', 'paid') AND date_from < CURDATE()");
+    }
+
+    /** Срок проживания закончился, а выселение не отмечено: считаем проживание завершённым. */
+    public function completeFinished(): void
+    {
+        $this->pdo->exec("UPDATE bookings SET status = 'completed' WHERE status = 'checked_in' AND date_to < CURDATE()");
     }
 
     /** Есть ли подтверждённая бронь номера, пересекающаяся с периодом [from, to). */
     public function hasOverlap(int $roomId, string $from, string $to): bool
     {
-        $stmt = $this->pdo->prepare("SELECT 1 FROM bookings WHERE room_id = :room AND status = 'confirmed'
+        $stmt = $this->pdo->prepare("SELECT 1 FROM bookings WHERE room_id = :room AND status IN (" . BookingStatus::blockingSql() . ")
                                      AND date_from < :to AND date_to > :from LIMIT 1");
         $stmt->execute(['room' => $roomId, 'from' => $from, 'to' => $to]);
 
@@ -63,7 +92,7 @@ final class BookingRepository
     /** Занятые периоды номера (для подсказки на странице номера). */
     public function upcomingForRoom(int $roomId, int $limit = 6): array
     {
-        $stmt = $this->pdo->prepare("SELECT date_from, date_to FROM bookings WHERE room_id = :room AND status = 'confirmed'
+        $stmt = $this->pdo->prepare("SELECT date_from, date_to FROM bookings WHERE room_id = :room AND status IN (" . BookingStatus::blockingSql() . ")
                                      AND date_to >= CURDATE() ORDER BY date_from LIMIT :limit");
         $stmt->bindValue('room', $roomId, PDO::PARAM_INT);
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
@@ -134,24 +163,26 @@ final class BookingRepository
 
     // ---------- Статистика для админ-панели ----------
 
-    /** @return array{users: int, rooms: int, active: int, revenue: string, occupancy: float} */
+    /** @return array{users: int, rooms: int, active: int, revenue: string, pending: string, occupancy: float} */
     public function summary(int $days = 30): array
     {
         $users = (int) $this->pdo->query('SELECT COUNT(*) FROM users')->fetchColumn();
         $rooms = (int) $this->pdo->query('SELECT COUNT(*) FROM rooms WHERE is_active = 1')->fetchColumn();
-        $active = (int) $this->pdo->query("SELECT COUNT(*) FROM bookings WHERE status = 'confirmed' AND date_to >= CURDATE()")->fetchColumn();
+        $active = (int) $this->pdo->query("SELECT COUNT(*) FROM bookings WHERE status IN (" . BookingStatus::blockingSql() . ") AND date_to >= CURDATE()")->fetchColumn();
         $revenue = (string) $this->pdo->query("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'paid'")->fetchColumn();
+        $pending = (string) $this->pdo->query("SELECT COALESCE(SUM(p.amount), 0) FROM payments p JOIN bookings b ON b.id = p.booking_id
+                                               WHERE p.status = 'pending' AND b.status = 'booked'")->fetchColumn();
 
         // Загрузка: занятые ночи в ближайшие $days дней / все возможные ночи активных номеров
         $stmt = $this->pdo->prepare("SELECT COALESCE(SUM(DATEDIFF(LEAST(b.date_to, DATE_ADD(CURDATE(), INTERVAL :d1 DAY)), GREATEST(b.date_from, CURDATE()))), 0)
                                      FROM bookings b JOIN rooms r ON r.id = b.room_id
-                                     WHERE b.status = 'confirmed' AND r.is_active = 1
+                                     WHERE b.status IN (" . BookingStatus::blockingSql() . ") AND r.is_active = 1
                                        AND b.date_from < DATE_ADD(CURDATE(), INTERVAL :d2 DAY) AND b.date_to > CURDATE()");
         $stmt->execute(['d1' => $days, 'd2' => $days]);
         $nights = (float) $stmt->fetchColumn();
         $capacity = $rooms * $days;
 
-        return ['users' => $users, 'rooms' => $rooms, 'active' => $active, 'revenue' => $revenue,
+        return ['users' => $users, 'rooms' => $rooms, 'active' => $active, 'revenue' => $revenue, 'pending' => $pending,
                 'occupancy' => $capacity > 0 ? round(100 * $nights / $capacity, 1) : 0.0];
     }
 
@@ -163,7 +194,7 @@ final class BookingRepository
                                          COUNT(b.id) AS bookings,
                                          COALESCE(SUM(CASE WHEN p.status = 'paid' THEN p.amount END), 0) AS revenue
                                   FROM rooms r
-                                  LEFT JOIN bookings b ON b.room_id = r.id AND b.status = 'confirmed'
+                                  LEFT JOIN bookings b ON b.room_id = r.id AND b.status <> 'cancelled'
                                   LEFT JOIN payments p ON p.booking_id = b.id
                                   GROUP BY r.class
                                   ORDER BY FIELD(r.class, 'economy', 'standard', 'comfort', 'suite')")->fetchAll();

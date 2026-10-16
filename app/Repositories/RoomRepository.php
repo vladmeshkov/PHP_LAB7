@@ -71,7 +71,7 @@ final class RoomRepository
             // Номер свободен, если нет подтверждённой брони, пересекающейся с выбранными датами.
             // День выезда свободен для заезда следующего гостя, поэтому сравнение строгое.
             $conds[] = "NOT EXISTS (SELECT 1 FROM bookings b
-                                    WHERE b.room_id = r.id AND b.status = 'confirmed'
+                                    WHERE b.room_id = r.id AND b.status IN (" . \Hotel\Services\BookingStatus::blockingSql() . ")
                                       AND b.date_from < :to AND b.date_to > :from)";
             $params['from'] = $f['from'];
             $params['to'] = $f['to'];

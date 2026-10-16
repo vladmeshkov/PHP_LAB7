@@ -18,22 +18,18 @@
 
 <div class="row g-4">
     <div class="col-lg-7">
-        <div class="room-hero mb-4">
-            <img src="<?= e(room_image($room['class'])) ?>" alt="Номер <?= e($room['number']) ?>">
-        </div>
-
         <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
             <h1 class="mb-0">Номер <?= e($room['number']) ?></h1>
             <?= class_badge($room['class']) ?>
         </div>
-        <p class="text-muted"><?= icon('users') ?> до <?= (int) $room['capacity'] ?> гост. · <?= e(money($room['price'])) ?> за сутки</p>
+        <p class="text-muted">до <?= (int) $room['capacity'] ?> гост. · <?= e(money($room['price'])) ?> за сутки</p>
         <p class="mb-4"><?= nl2br(e((string) $room['description'])) ?></p>
 
         <div class="card card-body mb-3">
             <h3 class="mb-3">В номере</h3>
             <ul class="amenities">
                 <?php foreach (room_amenities($room['class']) as $item): ?>
-                    <li><?= icon('check') ?><?= e($item) ?></li>
+                    <li><?= e($item) ?></li>
                 <?php endforeach; ?>
             </ul>
         </div>
@@ -54,7 +50,7 @@
         <div class="card booking-panel">
             <div class="card-body p-4">
                 <div class="d-flex justify-content-between align-items-baseline mb-3">
-                    <div class="price-big"><?= e(money($room['price'])) ?></div>
+                    <div class="h4 mb-0"><?= e(money($room['price'])) ?></div>
                     <span class="text-muted">за сутки</span>
                 </div>
 
@@ -103,10 +99,10 @@
 
                         <div class="summary-row mt-3">
                             <span class="text-muted">Итого за <span id="nights">–</span> сут.</span>
-                            <strong id="total">–</strong>
+                            <strong id="total" class="fs-5">–</strong>
                         </div>
-                        <button class="btn btn-gold w-100 py-2">Забронировать и оплатить</button>
-                        <div class="form-text text-center mt-2">Оплата условная: данные карты не запрашиваются.</div>
+                        <button class="btn btn-primary w-100">Забронировать и оплатить</button>
+                        <div class="form-text mt-2">После бронирования бронь нужно оплатить в течение <?= (int) config('payment_hold_hours') ?> ч., иначе она будет отменена. При оплате «при заселении» срок не ограничен. Платёж условный: данные карты не запрашиваются.</div>
                     </form>
                 <?php endif; ?>
             </div>

@@ -12,6 +12,7 @@ final class DashboardController extends Controller
 {
     public function index(): Response
     {
+        $this->app->bookingService()->refresh();
         $bookings = $this->app->bookings();
 
         return $this->view('admin/dashboard', [

@@ -156,11 +156,14 @@ $d = static fn (int $days): string => date('Y-m-d', strtotime("+{$days} days"));
 
 $id = $service->book($client, $room, $d(300), $d(303), 2, 'card');
 $booking = $bookings->find($id);
-check('бронь создана со статусом confirmed', $booking['status'] === 'confirmed');
-check('оплата создана автоматически (3 ночи = 300.00)', $booking['amount'] === '300.00' && $booking['pay_status'] === 'paid');
+check('новая бронь: статус «забронировано»', $booking['status'] === 'booked');
+check('оплата создана: 3 ночи = 300.00, статус «ожидает оплаты»', $booking['amount'] === '300.00' && $booking['pay_status'] === 'pending');
+check('для карты задан срок оплаты', $booking['pay_due'] !== null);
 check('пересекающаяся бронь отклоняется', throws(fn () => $service->book($client, $room, $d(302), $d(305), 1, 'card'), BookingException::class));
 check('бронь внутри занятого периода отклоняется', throws(fn () => $service->book($client, $room, $d(301), $d(302), 1, 'card'), BookingException::class));
-check('день выезда свободен для следующего заезда', $service->book($client, $room, $d(303), $d(305), 1, 'cash') > 0);
+$cashId = $service->book($client, $room, $d(303), $d(305), 1, 'cash');
+check('день выезда свободен для следующего заезда', $cashId > 0);
+check('оплата «при заселении» без срока', $bookings->find($cashId)['pay_due'] === null);
 check('больше гостей, чем мест, отклоняется', throws(fn () => $service->book($client, $room, $d(400), $d(402), 3, 'card'), BookingException::class));
 check('неизвестный способ оплаты отклоняется', throws(fn () => $service->book($client, $room, $d(400), $d(402), 1, 'bitcoin'), BookingException::class));
 check('бронь в прошлом отклоняется', throws(fn () => $service->book($client, $room, '2020-01-01', '2020-01-03', 1, 'card'), BookingException::class));
@@ -169,19 +172,57 @@ check('бронь в прошлом отклоняется', throws(fn () => $se
 check('занятый номер не попадает в список свободных', $rooms->count(['from' => $d(300), 'to' => $d(303), 'class' => 'standard', 'search' => 'T1']) === 0);
 check('в другие даты номер свободен', $rooms->count(['from' => $d(310), 'to' => $d(312), 'search' => 'T1']) === 1);
 
-// Отмена
+// Оплата
 $other = $users->create('Другой Клиент', 'other@test.by', password_hash('Secret123', PASSWORD_DEFAULT));
+check('чужую бронь оплатить нельзя', throws(fn () => $service->pay($id, $other, false), BookingException::class));
+check('«при заселении» гость сам оплатить не может', throws(fn () => $service->pay($cashId, $client, false), BookingException::class));
+$service->pay($id, $client, false);
+check('после оплаты бронь «оплачено», платёж «оплачено»', $bookings->find($id)['status'] === 'paid' && $bookings->find($id)['pay_status'] === 'paid');
+check('повторная оплата отклоняется', throws(fn () => $service->pay($id, $client, false), BookingException::class));
+$service->pay($cashId, $admin['id'], true);
+check('администратор принимает оплату при заселении', $bookings->find($cashId)['status'] === 'paid');
+
+// Заселение и выселение
+check('заселить до даты заезда нельзя', throws(fn () => $service->checkIn($id), BookingException::class));
+$now = $service->book($client, $room, date('Y-m-d'), $d(2), 1, 'online');
+check('неоплаченную бронь заселить нельзя', throws(fn () => $service->checkIn($now), BookingException::class));
+$service->pay($now, $client, false);
+$service->checkIn($now);
+check('после заселения статус «проживает»', $bookings->find($now)['status'] === 'checked_in');
+check('проживающего отменить нельзя', throws(fn () => $service->cancel($now, $admin['id'], true), BookingException::class));
+check('выселить можно только проживающего', throws(fn () => $service->checkOut($id), BookingException::class));
+$service->checkOut($now);
+check('после выселения «завершено»', $bookings->find($now)['status'] === 'completed');
+
+// Отмена
 check('чужую бронь клиент отменить не может', throws(fn () => $service->cancel($id, $other, false), BookingException::class));
 $service->cancel($id, $client, false);
-check('своя бронь отменяется', $bookings->find($id)['status'] === 'cancelled');
-check('при отмене оплата возвращается', $bookings->find($id)['pay_status'] === 'refunded');
+check('своя бронь отменяется, причина — гость', $bookings->find($id)['status'] === 'cancelled' && $bookings->find($id)['cancel_reason'] === 'client');
+check('при отмене оплаченной брони платёж возвращается', $bookings->find($id)['pay_status'] === 'refunded');
 check('повторная отмена отклоняется', throws(fn () => $service->cancel($id, $client, false), BookingException::class));
 check('после отмены даты снова свободны', !$bookings->hasOverlap($room, $d(300), $d(303)));
 
-$started = $service->book($client, $room, date('Y-m-d'), $d(2), 1, 'card');
-check('клиент не может отменить начавшееся проживание', throws(fn () => $service->cancel($started, $client, false), BookingException::class));
-$service->cancel($started, $admin['id'], true);
-check('администратор может отменить любую неоконченную бронь', $bookings->find($started)['status'] === 'cancelled');
+$unpaid = $service->book($client, $room, $d(400), $d(402), 1, 'card');
+$service->cancel($unpaid, $admin['id'], true);
+check('отмена неоплаченной брони закрывает платёж без возврата', $bookings->find($unpaid)['pay_status'] === 'cancelled' && $bookings->find($unpaid)['cancel_reason'] === 'admin');
+
+// Автоматические переходы
+$late = $service->book($client, $room, $d(500), $d(502), 1, 'card');
+$pdo->exec("UPDATE payments SET due_at = NOW() - INTERVAL 1 HOUR WHERE booking_id = {$late}");
+$service->refresh();
+check('не оплатили вовремя: бронь отменена автоматически', $bookings->find($late)['status'] === 'cancelled' && $bookings->find($late)['cancel_reason'] === 'expired');
+check('просроченная бронь освобождает номер', !$bookings->hasOverlap($room, $d(500), $d(502)));
+$cashKept = $service->book($client, $room, $d(600), $d(602), 1, 'cash');
+$service->refresh();
+check('бронь с оплатой при заселении не истекает', $bookings->find($cashKept)['status'] === 'booked');
+
+$pdo->exec("INSERT INTO bookings (user_id, room_id, date_from, date_to, guests, status) VALUES ({$client}, {$room}, CURDATE() - INTERVAL 5 DAY, CURDATE() - INTERVAL 3 DAY, 1, 'paid')");
+$missed = (int) $pdo->lastInsertId();
+$pdo->exec("INSERT INTO bookings (user_id, room_id, date_from, date_to, guests, status) VALUES ({$client}, {$room}, CURDATE() - INTERVAL 9 DAY, CURDATE() - INTERVAL 7 DAY, 1, 'checked_in')");
+$forgot = (int) $pdo->lastInsertId();
+$service->refresh();
+check('оплачено, но гость не приехал: «не заехал»', $bookings->find($missed)['status'] === 'no_show');
+check('проживание закончилось без выселения: «завершено»', $bookings->find($forgot)['status'] === 'completed');
 
 // Удаление и каскады
 check('номер с бронями нельзя удалить (внешний ключ)', throws(fn () => $rooms->delete($room), PDOException::class));

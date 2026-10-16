@@ -102,11 +102,17 @@ final class Installer
         }
 
         // --- Бронирования: для каждого номера цепочка непересекающихся периодов от -60 до +60 дней ---
-        $insertBooking = $this->pdo->prepare('INSERT INTO bookings (user_id, room_id, date_from, date_to, guests, status, created_at) VALUES (:user, :room, :from, :to, :guests, :status, :created)');
-        $insertPayment = $this->pdo->prepare('INSERT INTO payments (booking_id, amount, paid_at, method, status) VALUES (:booking, :amount, :paid, :method, :status)');
+        // Статусы согласованы с датами: прошедшие – завершены (есть отмены и «не заехал»), текущие – проживают,
+        // будущие – оплачены, ждут оплаты или отменены.
+        $insertBooking = $this->pdo->prepare('INSERT INTO bookings (user_id, room_id, date_from, date_to, guests, status, cancel_reason, created_at)
+                                              VALUES (:user, :room, :from, :to, :guests, :status, :reason, :created)');
+        $insertPayment = $this->pdo->prepare('INSERT INTO payments (booking_id, amount, method, status, due_at, paid_at)
+                                              VALUES (:booking, :amount, :method, :status, :due, :paid)');
         $methods = ['card', 'online', 'cash'];
         $today = strtotime('today');
+        $now = time();
         $count = 0;
+        $dt = static fn (int $ts): string => date('Y-m-d H:i:s', $ts);
 
         foreach ($rooms as $room) {
             $cursor = $today + mt_rand(-60, -20) * 86400;
@@ -120,19 +126,49 @@ final class Installer
                     continue;   // не каждый промежуток занят
                 }
 
-                $future = $from > $today;
-                $cancelled = $future && mt_rand(1, 100) <= 15;
-                $createdTs = min($today, $from - mt_rand(1, 20) * 86400);
-                $created = date('Y-m-d H:i:s', $createdTs + mt_rand(28800, 72000) - 86400 * 0);
+                $method = $methods[array_rand($methods)];
+                $created = min($now - 3600, $from - mt_rand(1, 20) * 86400 + mt_rand(28800, 72000));
+                $reason = null;
+                $roll = mt_rand(1, 100);
+
+                if ($to < $today) {                       // проживание закончилось
+                    $status = $roll <= 82 ? 'completed' : ($roll <= 90 ? 'cancelled' : 'no_show');
+                } elseif ($from < $today) {               // сейчас живёт
+                    $status = 'checked_in';
+                } elseif ($roll <= 15) {                  // будущая бронь, отменена
+                    $status = 'cancelled';
+                } elseif ($roll <= 70) {
+                    $status = 'paid';
+                } else {
+                    $status = 'booked';                   // ждёт оплаты
+                }
+
+                // Оплата по статусу брони
+                $payStatus = 'paid';
+                $due = null;
+                $paidAt = $dt($created + 600);
+                if ($status === 'booked') {
+                    $payStatus = 'pending';
+                    $paidAt = null;
+                    if ($method !== 'cash') {             // карта и онлайн: срок ещё не вышел
+                        $created = $now - mt_rand(1, 20) * 3600;
+                        $due = $dt($created + (int) config('payment_hold_hours', 24) * 3600);
+                    }
+                } elseif ($status === 'cancelled') {
+                    $reason = mt_rand(0, 1) ? 'client' : 'admin';
+                    $wasPaid = mt_rand(0, 1) === 1;
+                    $payStatus = $wasPaid ? 'refunded' : 'cancelled';
+                    $paidAt = $wasPaid ? $paidAt : null;
+                }
 
                 $insertBooking->execute([
                     'user' => $clientIds[array_rand($clientIds)], 'room' => $room['id'],
                     'from' => date('Y-m-d', $from), 'to' => date('Y-m-d', $to),
-                    'guests' => mt_rand(1, $room['capacity']), 'status' => $cancelled ? 'cancelled' : 'confirmed', 'created' => $created,
+                    'guests' => mt_rand(1, $room['capacity']), 'status' => $status, 'reason' => $reason, 'created' => $dt($created),
                 ]);
                 $insertPayment->execute([
                     'booking' => (int) $this->pdo->lastInsertId(), 'amount' => number_format($room['price'] * $nights, 2, '.', ''),
-                    'paid' => date('Y-m-d', $createdTs), 'method' => $methods[array_rand($methods)], 'status' => $cancelled ? 'refunded' : 'paid',
+                    'method' => $method, 'status' => $payStatus, 'due' => $due, 'paid' => $paidAt,
                 ]);
                 $count++;
             }

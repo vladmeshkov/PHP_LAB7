@@ -15,17 +15,15 @@ use Hotel\Services\BookingService;
 /** Каталог номеров: просмотр доступных номеров, фильтр по классу и датам. */
 final class RoomController extends Controller
 {
-    /** Главная: поиск по датам и обзор классов номеров. */
     public function home(): Response
     {
-        return $this->view('rooms/home', [
-            'classes' => RoomRepository::CLASSES,
-            'summary' => $this->app->rooms()->summaryByClass(),
-        ]);
+        return $this->redirect('rooms');
     }
 
     public function index(Request $request): Response
     {
+        $this->app->bookingService()->refresh();   // просроченные брони освобождают номера
+
         $from = $request->query('from');
         $to = $request->query('to');
         $class = $request->query('class');

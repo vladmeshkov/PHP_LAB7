@@ -15,7 +15,7 @@ $query = static fn (array $extra = []): string => http_build_query(array_filter(
     <p>Укажите даты проживания, и мы покажем только свободные номера.</p>
 </div>
 
-<form method="get" action="<?= e(url('rooms')) ?>" class="card filter-bar">
+<form method="get" action="<?= e(url('rooms')) ?>" class="card card-body mb-3">
     <div class="row g-3 align-items-end">
         <div class="col-6 col-lg-2">
             <label class="form-label" for="from">Заезд</label>
@@ -70,33 +70,30 @@ $query = static fn (array $extra = []): string => http_build_query(array_filter(
 </p>
 
 <?php if ($rooms === []): ?>
-    <div class="card card-body text-center py-5">
+    <div class="card card-body text-center py-4">
         <h3>Свободных номеров нет</h3>
         <p class="text-muted mb-3">На выбранные даты и условия номеров не нашлось. Попробуйте другие даты или другой класс.</p>
         <div><a class="btn btn-primary" href="<?= e(url('rooms')) ?>">Показать все номера</a></div>
     </div>
 <?php endif; ?>
 
-<div class="row g-4 mb-4">
+<div class="row g-3 mb-4">
     <?php foreach ($rooms as $room): ?>
         <div class="col-md-6 col-lg-4">
             <article class="card room-card">
-                <a class="room-photo" href="<?= e(url('rooms/' . $room['id'])) ?><?= $dated || $filters['guests'] ? '?' . e($query()) : '' ?>">
-                    <img src="<?= e(room_image($room['class'])) ?>" alt="Номер <?= e($room['number']) ?>" loading="lazy">
-                    <?= class_badge($room['class']) ?>
-                    <span class="room-no"><?= e($room['number']) ?></span>
-                </a>
                 <div class="card-body">
-                    <div class="room-meta">
-                        <span><?= icon('users') ?> до <?= (int) $room['capacity'] ?> гост.</span>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h2 class="room-title">Номер <?= e($room['number']) ?></h2>
+                        <?= class_badge($room['class']) ?>
                     </div>
-                    <p class="text-muted small flex-grow-1"><?= e(mb_strimwidth((string) $room['description'], 0, 100, '…')) ?></p>
-                    <div class="d-flex justify-content-between align-items-end mt-2">
+                    <p class="text-muted small flex-grow-1 mb-3"><?= e(mb_strimwidth((string) $room['description'], 0, 100, '…')) ?></p>
+                    <div class="d-flex justify-content-between align-items-end">
                         <div>
                             <div class="room-price"><?= e(money($room['price'])) ?> <span>/ сутки</span></div>
                             <?php if ($dated): ?>
                                 <div class="small text-success">за <?= (int) $nights ?> сут.: <?= e(money($room['price'] * $nights)) ?></div>
                             <?php endif; ?>
+                            <div class="small text-muted">до <?= (int) $room['capacity'] ?> гост.</div>
                         </div>
                         <a class="btn btn-outline-primary btn-sm" href="<?= e(url('rooms/' . $room['id'])) ?><?= $dated || $filters['guests'] ? '?' . e($query()) : '' ?>">Выбрать</a>
                     </div>

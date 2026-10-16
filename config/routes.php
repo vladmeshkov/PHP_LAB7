@@ -30,6 +30,7 @@ return static function (Router $r): void {
     // Бронирования клиента
     $r->get('/bookings', [BookingController::class, 'index'], ['auth']);
     $r->post('/bookings', [BookingController::class, 'store'], ['auth']);
+    $r->post('/bookings/{id}/pay', [BookingController::class, 'pay'], ['auth']);
     $r->post('/bookings/{id}/cancel', [BookingController::class, 'cancel'], ['auth']);
 
     // Админ-панель
@@ -47,5 +48,8 @@ return static function (Router $r): void {
     $r->post('/admin/users/{id}/delete', [AdminUsers::class, 'destroy'], ['admin']);
 
     $r->get('/admin/bookings', [AdminBookings::class, 'index'], ['admin']);
+    $r->post('/admin/bookings/{id}/pay', [AdminBookings::class, 'pay'], ['admin']);
+    $r->post('/admin/bookings/{id}/check-in', [AdminBookings::class, 'checkIn'], ['admin']);
+    $r->post('/admin/bookings/{id}/check-out', [AdminBookings::class, 'checkOut'], ['admin']);
     $r->post('/admin/bookings/{id}/cancel', [AdminBookings::class, 'cancel'], ['admin']);
 };
